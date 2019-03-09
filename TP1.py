@@ -31,7 +31,7 @@ def plot_eigenvalues(N, n, c, R, finite = True) :
     eigenvalues = np.real(eigenvalues)
     plt.figure(0)
     plt.hist(eigenvalues, color = 'red',
-                 bins = N) 
+                 bins = N//2) 
     plt.legend() 
 
 
@@ -201,11 +201,71 @@ def plot_fix_N(R, N, la, low_c = 10**-7, high_c = 1, MC = 10) :
     plt.legend()
     
 
-def alternative_estimation() :
-    pass
+def alternative_estimation(X, R, N, n, c_i) :
     
+    M = 1/n*np.dot(np.sqrt(R),np.dot(X,np.dot(X.T,np.sqrt(R))))
+    eigenvalues, _ = np.linalg.eig(M)
+    eigenvalues = np.real(eigenvalues)
+    eigenvalues.sort()
+    
+    a = np.sqrt(eigenvalues/n)
+    eta, _ = np.linalg.eig(np.diag(eigenvalues) - np.outer(a,a))
+    eta  = np.real(eta)
+    eta.sort()
+    
+    g1 = n/N*np.sum(eigenvalues - eta)
+    
+    temp_somme = np.array([1/np.sum(1/(eigenvalues - eta[i])**2) for i in range(len(eta))])
+    g2 = n**2/N*np.sum(temp_somme)
+    
+    delta = 4*c_i[1]*(g2-g1**2)/c_i[0]
+        
+    if delta >= 0 :
+        la_1 = g1 + np.sqrt(c_i[0]*(g2-g1**2)/c_i[1])
+        la_2 = g1 - np.sqrt(c_i[1]*(g2-g1**2)/c_i[0])
 
+
+#    plt.figure(10)
+#    tt = np.linspace(0,len(eigenvalues)-1,len(eigenvalues),dtype = 'int')
+#    plt.scatter(tt, eigenvalues, color = 'blue', marker = '+')
+#    plt.scatter(tt, eta, color = 'blue', marker = '+')
+#    
+#    plt.show()
     
+    return la_1,la_2
+    
+def plot_mse_one_bulk(N, c_i, la, low_c = 10**-2, high_c = 0.2, MC = 10) :
+    
+    cs = np.linspace(low_c, high_c)
+    ns = N/cs
+    error = np.zeros((len(cs), len(c_i)))
+    error_check = 1*error
+    for i in tqdm(range(len(cs))) : 
+        n = int(ns[i])
+        R = la[1]*np.eye(N)
+        R[:int(c_i[0]*N),:int(c_i[0]*N)] = la[0]*np.eye(int(c_i[0]*N))
+        temp_error = np.zeros((MC,len(la)))
+        temp_error_check = 0*temp_error
+        for k in range(MC) : 
+            X = npr.randn(N,n)
+            estimated_la, emp_la, _ = estimate_la(X, R, N, n, c_i)
+            temp_error[k] = np.array([(la[0] - estimated_la[0])**2, (la[1] - estimated_la[1])**2])
+            la_1, la_2 = alternative_estimation(X, R, N, n, c_i) 
+            print(la_1,la_2)
+            temp_error_check[k] = np.array([(la_2 - la[0])**2, (la[1] - la_1)**2])
+        error_check[i] = np.mean(temp_error_check, axis = 0)
+        error[i] = np.mean(temp_error, axis = 0)
+    plt.figure(5)
+    plt.clf()
+    plt.semilogy(cs, error[:,0], color = 'green', label = 'MSE la_1', marker = '^')
+    plt.semilogy(cs, error[:,1], color = 'red', label = 'MSE la_2', marker = 'o')
+#    plt.semilogy(cs,1/(2*Ns**2),color = 'blue', linestyle = 'dashed')
+    plt.semilogy(cs, error_check[:,0], color = 'blue', label = 'MSE new method la_1', marker = '+')
+    plt.semilogy(cs, error_check[:,1], color = 'magenta', label = 'MSE new method la_2', marker = '.')
+    plt.legend()
+    plt.xlabel('c')
+    plt.ylabel('Error')
+    plt.show()
 
 if __name__  == '__main__' :
     with warnings.catch_warnings():
@@ -220,10 +280,20 @@ if __name__  == '__main__' :
 #        plot_eigenvalues(N,n,c,R, finite = False)
 #        plot_f(la, c_i, c)
 #        plot_x(la,c_i, c)
-#        X = npr.randn(N,n)
+#       X = npr.randn(N,n)
 #        estimator, _, _ = estimate_la(X, R, N, n, c_i)
 #        plot_histogram(R, N, n, c_i, la)
-        c_0 = 0.11
-        plot_mse(N, n, c_i, la, low_N = 50, high_N = 500, MC = 20)
+        c = 0.13
+        n = 1*10**4
+        N = int(n*c)
+        la = np.array([1/2,1])
+        R = la[1]*np.eye(N)
+        c_i = [0.3, 1 - 0.3]
+        R[:int(c_i[0]*N),:int(c_i[0]*N)] = la[0]*np.eye(int(c_i[0]*N))
+        X = npr.randn(N,n)
+#        plot_mse(N, n, c_i, la, low_N = 50, high_N = 500, MC = 20)
 #        separation_spectre(n)
- #       plot_fix_N(R, N, la, low_c = 10**-5, high_c = 0.5, MC = 20)
+#       plot_fix_N(R, N, la, low_c = 10**-5, high_c = 0.5, MC = 20)
+#        la_1, la_2  = alternative_estimation(X, R, N, n, c_i) 
+        plot_mse_one_bulk(50, c_i, la, low_c = 10**-2, high_c = 0.2, MC = 10)
+        
